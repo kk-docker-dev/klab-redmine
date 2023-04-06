@@ -13,6 +13,10 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
             apache2 build-essential libapache2-mod-passenger libsqlite3-dev ruby-dev wget
 
+# Clean repositories
+RUN apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy source
 COPY src /klab
 
@@ -64,4 +68,5 @@ RUN cp -f /klab/configs/passenger.conf /etc/apache2/mods-available/passenger.con
 USER root
 WORKDIR /root
 
-CMD [ "/klab/init.sh" ]
+# Run entrypoint
+ENTRYPOINT [ "/klab/init.sh" ]

@@ -7,7 +7,7 @@ trap 'echo -e "\nStopping Redmine ..."; exit 0' SIGINT
 
 eval apache2ctl start
 
-# Run infinitely
+# Keep alive
 while true; do
 	sleep 3
 done
