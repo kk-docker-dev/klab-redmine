@@ -1,61 +1,59 @@
-# Docker file to build Klab Redmine
+# Docker file to build Redmine project manager
 
 # Base image
-FROM ubuntu:focal
+FROM klab/ubuntu:latest
 
-# About docker image
+# About this docker image
 LABEL MAINTAINER="Kirubakaran Shanmugam <kribakarans@gmail.com>"
-LABEL DESCRIPTION="Klab Redmine"
-
-# Disable user prompt
-ARG DEBIAN_FRONTEND=noninteractive
-
-# Update and upgrade the system
-RUN apt-get update && \
-    apt-get upgrade -y --no-install-recommends
-
-# Install base packages
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends locales tzdata
-
-# Setting timezone
-RUN ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
-    dpkg-reconfigure -f noninteractive tzdata
-
-# Setting locales
-RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
-    dpkg-reconfigure --frontend=noninteractive locales && \
-    update-locale LANG=en_US.UTF-8 && \
-    locale-gen en_US.UTF-8
-
-# Setting language
-ENV LANG en_US.UTF-8
-ENV LANGUAGE en_US:en
-ENV LC_ALL en_US.UTF-8
+LABEL DESCRIPTION="Klab Redmine project manager"
 
 # Install required packages
 RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
             apache2 build-essential libapache2-mod-passenger libsqlite3-dev ruby-dev wget
-
-# Download and extract Redmine binaries
-RUN mkdir -p /opt/redmine && \
-    wget https://www.redmine.org/releases/redmine-5.0.5.tar.gz && \
-    tar -xf redmine-5.0.5.tar.gz -C /opt/redmine --strip=1 && \
-    rm -f redmine-5.0.5.tar.gz
 
 # Copy source
 COPY src /klab
 
-# Setup Redmine Gems
+# Download required redmine archives
+RUN mkdir -p /opt/redmine && \
+    wget --no-verbose --show-progress \
+         --quiet --progress=bar:force:noscroll \
+           https://github.com/atomixcloud/archives/releases/download/redmine/redmine-5.0.5.tar.gz && \
+    wget --no-verbose --show-progress \
+         --quiet --progress=bar:force:noscroll \
+           https://github.com/atomixcloud/archives/releases/download/redmine/redmine_agile-1.6.5.tgz && \
+    wget --no-verbose --show-progress \
+         --quiet --progress=bar:force:noscroll \
+           https://github.com/atomixcloud/archives/releases/download/redmine/redmine_code_review-1.1.0.tgz && \
+    wget --no-verbose --show-progress \
+         --quiet --progress=bar:force:noscroll \
+           https://github.com/atomixcloud/archives/releases/download/redmine/redmine_purple_theme-2-2.15.tgz
+
+# Extract and install archives
+RUN mkdir -p /opt/redmine/public/themes/Purple && \
+    mkdir -p /opt/redmine/plugins/redmine_agile && \
+    mkdir -p /opt/redmine/plugins/redmine_code_review && \
+    tar -xf redmine-5.0.5.tar.gz -C /opt/redmine --strip=1 && \
+    tar -xf redmine_agile-1.6.5.tgz -C /opt/redmine/plugins/redmine_agile --strip=1 && \
+    tar -xf redmine_purple_theme-2-2.15.tgz -C /opt/redmine/public/themes/Purple --strip=1 && \
+    tar -xf redmine_code_review-1.1.0.tgz -C /opt/redmine/plugins/redmine_code_review --strip=1 && \
+    rm -f redmine-5.0.5.tar.gz redmine_agile-1.6.5.tgz redmine_code_review-1.1.0.tgz redmine_purple_theme-2-2.15.tgz
+
+ENV REDMINE_LANG en
+ENV RAILS_ENV production
+# Setup Redmine database and gems
 RUN cp -f /klab/configs/database.yml /opt/redmine/config/database.yml && \
     cd /opt/redmine && \
     gem install bundler && \
     bundle config set --local without 'development test'  && \
     bundle install && \
     bundle exec rake generate_secret_token && \
-    RAILS_ENV=production bundle exec rake db:migrate && \
-    RAILS_ENV=production REDMINE_LANG=en bundle exec rake redmine:load_default_data
+    bundle exec rake db:migrate && \
+    bundle exec rake redmine:load_default_data && \
+    bundle exec rake redmine:plugins NAME=redmine_agile && \
+    bundle exec rake redmine:plugins NAME=redmine_code_review
 
 # Setup Redmine Apache configs
 RUN cp -f /klab/configs/passenger.conf /etc/apache2/mods-available/passenger.conf && \
@@ -66,4 +64,4 @@ RUN cp -f /klab/configs/passenger.conf /etc/apache2/mods-available/passenger.con
 USER root
 WORKDIR /root
 
-CMD [ "/klab/startup.sh" ]
+CMD [ "/klab/init.sh" ]
